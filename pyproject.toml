@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xhttp-proxy"
+version = "0.1.0"
+description = "Local HTTP proxy over VLESS / XHTTP stream-one (HTTP/2)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["h2==4.2.0"]
+
+[project.scripts]
+xhttp-proxy = "xhttp_proxy.__main__:main"
+
+[project.urls]
+Repository = "https://github.com/fantasy-peak/xhttp"
+
+[tool.setuptools]
+packages = ["xhttp_proxy"]
