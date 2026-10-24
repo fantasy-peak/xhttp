@@ -14,6 +14,11 @@
 服务端只需支持 Xray 的 XHTTP `stream-one`（`network: xhttp` /
 `mode: stream-one`），走 HTTP/2 或 h2c。
 
+> 分层说明：`h11` 只用于**本地 HTTP 代理**的 HTTP/1.1 请求解析（浏览器/Windows
+> 系统代理只会说 HTTP/1.1）；到服务端的 XHTTP 传输**始终是 HTTP/2**（TLS ALPN
+> `h2`，或 `--no-tls` 的 h2c prior knowledge），不会回落到 HTTP/1.1。SOCKS5
+> 入站不经过 h11。
+
 > 只实现了 HTTP/2 传输（TLS + ALPN `h2`，或明文 h2c prior knowledge）。
 > 不支持 HTTP/3（QUIC）、REALITY、Mux.Cool 和 UDP；这些不在本客户端的范围内。
 
@@ -177,6 +182,9 @@ exe 是 `--onefile --console`：会显示一个控制台窗口，日志和错误
 它会在 `windows-latest` 上建 venv、跑单元测试、用同一个 spec 打包 exe。
 
 ## 配置项
+
+未指定 `--config` 时会依次看当前目录、程序/exe 所在目录的 `config.json`；
+只有包含 `"server"` 键的文件才会被当作本程序的配置，避免误读别的工具的同名文件。
 
 `config.json`（键名与命令行一一对应，命令行优先）：
 

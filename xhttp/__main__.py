@@ -19,6 +19,7 @@ from .config import (
     finalize,
     from_mapping,
     load_json_file,
+    looks_like_config,
     parse_host_port,
 )
 from .h2client import H2Session
@@ -123,10 +124,18 @@ def build_config(args: argparse.Namespace) -> Config:
     else:
         data = {}
         for candidate in config_file_candidates(None):
-            if candidate.is_file():
-                data = load_json_file(candidate)
-                log.debug("loaded config from %s", candidate)
-                break
+            if not candidate.is_file():
+                continue
+            candidate_data = load_json_file(candidate)
+            if not looks_like_config(candidate_data):
+                log.debug(
+                    "ignoring %s: no 'server' key, so it is not an xhttp config",
+                    candidate,
+                )
+                continue
+            data = candidate_data
+            log.debug("loaded config from %s", candidate)
+            break
 
     cfg = from_mapping(data)
 

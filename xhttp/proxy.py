@@ -9,6 +9,10 @@ Supports the two shapes a browser sends to an HTTP proxy:
   request per client connection.
 
 Each tunnel becomes one VLESS stream inside the shared HTTP/2 XHTTP session.
+
+``h11`` is only the HTTP/1.1 parser for this client-facing proxy listener;
+the connection to the XHTTP server is always HTTP/2 (``h2``/ALPN or h2c
+prior knowledge) and never HTTP/1.1.
 """
 
 from __future__ import annotations

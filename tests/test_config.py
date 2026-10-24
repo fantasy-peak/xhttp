@@ -5,6 +5,7 @@ from xhttp.config import (
     ConfigError,
     apply_share_url,
     finalize,
+    looks_like_config,
     parse_host_port,
 )
 
@@ -28,6 +29,18 @@ class HostPortTest(unittest.TestCase):
     def test_bad_port(self):
         with self.assertRaises(ConfigError):
             parse_host_port("example.com:0", 443)
+
+
+class LooksLikeConfigTest(unittest.TestCase):
+    def test_accepts_our_schema(self):
+        self.assertTrue(looks_like_config({"server": "example.com", "uuid": UUID}))
+
+    def test_rejects_another_tools_config(self):
+        self.assertFalse(
+            looks_like_config(
+                {"h2_path": "/x", "listen_address": "0.0.0.0", "uuid": UUID}
+            )
+        )
 
 
 class FinalizeTest(unittest.TestCase):

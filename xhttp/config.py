@@ -225,6 +225,17 @@ def load_json_file(path: Path) -> dict[str, Any]:
     return data
 
 
+def looks_like_config(data: Mapping[str, Any]) -> bool:
+    """Whether an auto-discovered ``config.json`` is meant for this client.
+
+    Other tools also call their file ``config.json``.  Requiring our
+    ``server`` key keeps a directory-local foreign config from being parsed
+    as this client's settings.  An explicit ``--config`` is always honoured.
+    """
+
+    return "server" in data
+
+
 def from_mapping(data: Mapping[str, Any]) -> Config:
     known = {field.name for field in dataclasses.fields(Config)}
     unknown = sorted(set(data) - known)
