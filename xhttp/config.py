@@ -52,6 +52,8 @@ class Config:
     # local HTTP proxy
     listen_host: str = "127.0.0.1"
     listen_port: int = 1080
+    # local SOCKS5 proxy; empty string disables it (disabled by default)
+    socks_listen: str = ""
 
     # optional upstream (corporate) HTTP proxy, http://host:port
     upstream_proxy: str = ""
@@ -101,6 +103,16 @@ class Config:
     def uuid_bytes(self) -> bytes:
         return uuid_module.UUID(self.uuid).bytes
 
+    def socks_endpoint(self) -> tuple[str, int] | None:
+        """Parsed SOCKS5 listen address, or ``None`` when disabled."""
+
+        text = self.socks_listen.strip()
+        if not text:
+            return None
+        if text.isdigit():
+            return "127.0.0.1", _to_port(text, text)
+        return parse_host_port(text, 1081)
+
     def upstream_endpoint(self) -> tuple[str, int] | None:
         if not self.upstream_proxy:
             return None
@@ -122,10 +134,11 @@ class Config:
         if self.upstream_proxy:
             upstream = f", upstream_proxy={self.upstream_proxy}"
         tls = "tls" if self.tls else "h2c"
+        socks = self.socks_listen or "off"
         return (
             f"server={self.server}:{self.port} path={self.path} {tls} "
             f"sni={self.server_hostname!r} authority={self.authority!r}; "
-            f"listen={self.listen_host}:{self.listen_port}{upstream}"
+            f"listen={self.listen_host}:{self.listen_port} socks={socks}{upstream}"
         )
 
 
@@ -308,6 +321,13 @@ def finalize(cfg: Config) -> Config:
 
     if not (0 < cfg.listen_port < 65536):
         raise ConfigError(f"listen port out of range: {cfg.listen_port}")
+    if cfg.socks_listen:
+        socks = cfg.socks_endpoint()
+        if socks == (cfg.listen_host, cfg.listen_port):
+            raise ConfigError(
+                "the HTTP and SOCKS5 listeners cannot use the same address; "
+                "change socks_listen or pass --no-socks"
+            )
     if cfg.connect_timeout <= 0 or cfg.response_timeout <= 0:
         raise ConfigError("connect_timeout and response_timeout must be > 0")
     if cfg.idle_timeout < 0:

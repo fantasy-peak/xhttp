@@ -9,4 +9,4 @@ Only the client half is implemented here; the server can be Xray-core or any
 compatible XHTTP stream-one implementation.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

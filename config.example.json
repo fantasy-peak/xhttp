@@ -11,6 +11,7 @@
   "pin_sha256": "",
   "listen_host": "127.0.0.1",
   "listen_port": 1080,
+  "socks_listen": "",
   "upstream_proxy": "",
   "connect_timeout": 15.0,
   "response_timeout": 15.0,

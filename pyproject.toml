@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xhttp"
-version = "0.1.0"
-description = "Local HTTP proxy over VLESS / XHTTP stream-one (HTTP/2)"
+version = "0.2.0"
+description = "Local HTTP/SOCKS5 proxy over VLESS / XHTTP stream-one (HTTP/2)"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["h2==4.2.0"]
+dependencies = ["h2==4.2.0", "h11==0.16.0", "asyncio-socks5==0.2.11"]
 
 [project.scripts]
 xhttp = "xhttp.__main__:main"

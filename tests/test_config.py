@@ -62,6 +62,20 @@ class FinalizeTest(unittest.TestCase):
         with self.assertRaises(ConfigError):
             finalize(Config(server="example.com"))
 
+    def test_socks_is_disabled_by_default(self):
+        self.assertIsNone(self.make().socks_endpoint())
+
+    def test_socks_can_be_enabled(self):
+        cfg = self.make(socks_listen="127.0.0.1:1081")
+        self.assertEqual(cfg.socks_endpoint(), ("127.0.0.1", 1081))
+
+    def test_socks_numeric_port(self):
+        self.assertEqual(self.make(socks_listen="1082").socks_endpoint(), ("127.0.0.1", 1082))
+
+    def test_socks_cannot_share_the_http_address(self):
+        with self.assertRaises(ConfigError):
+            self.make(socks_listen="127.0.0.1:1080")
+
 
 class ShareUrlTest(unittest.TestCase):
     def test_basic(self):

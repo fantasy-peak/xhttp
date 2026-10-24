@@ -18,13 +18,15 @@ import logging
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
+import h11
+
 from .config import Config
-from .h2client import H2Session, XhttpError, XhttpStream
+from .h2client import H2Session, XhttpError
+from .relay import relay
 
 log = logging.getLogger("xhttp")
 
 _MAX_HEAD = 64 * 1024
-_MAX_HEADER_LINES = 200
 
 _HOP_BY_HOP = {
     "connection",
@@ -51,31 +53,33 @@ class ProtocolError(ValueError):
 
 
 def parse_request_head(raw: bytes) -> RequestHead:
-    if not raw.endswith(b"\r\n\r\n"):
-        raise ProtocolError("incomplete request head")
-    lines = raw[:-4].decode("latin-1").split("\r\n")
-    if not lines or not lines[0]:
-        raise ProtocolError("empty request line")
-    parts = lines[0].split(" ")
-    if len(parts) != 3:
-        raise ProtocolError(f"malformed request line: {lines[0]!r}")
-    method, target, version = parts
-    if not method or not target or not version.startswith("HTTP/"):
-        raise ProtocolError(f"malformed request line: {lines[0]!r}")
-    if len(lines) - 1 > _MAX_HEADER_LINES:
-        raise ProtocolError("too many headers")
+    """Parse an HTTP/1.x request head with ``h11``.
 
-    headers: list[tuple[str, str]] = []
-    for line in lines[1:]:
-        if not line:
-            continue
-        if line[0] in " \t":
-            raise ProtocolError("folded header lines are not accepted")
-        name, sep, value = line.partition(":")
-        if not sep or not name or any(c.isspace() for c in name):
-            raise ProtocolError(f"malformed header: {line!r}")
-        headers.append((name, value.strip()))
-    return RequestHead(method=method, target=target, version=version, headers=headers)
+    ``h11`` validates the request line, header syntax and the mandatory
+    ``Host`` header for HTTP/1.1.  Only the head is fed to it; the body and any
+    bytes after it stay in the StreamReader and are relayed verbatim.
+    """
+
+    conn = h11.Connection(h11.SERVER, max_incomplete_event_size=_MAX_HEAD)
+    try:
+        conn.receive_data(raw)
+        event = conn.next_event()
+    except h11.RemoteProtocolError as exc:
+        raise ProtocolError(str(exc)) from exc
+    if not isinstance(event, h11.Request):
+        raise ProtocolError("incomplete request head")
+    try:
+        return RequestHead(
+            method=event.method.decode("ascii"),
+            target=event.target.decode("latin-1"),
+            version="HTTP/" + event.http_version.decode("ascii"),
+            headers=[
+                (name.decode("latin-1"), value.decode("latin-1"))
+                for name, value in event.headers
+            ],
+        )
+    except UnicodeDecodeError as exc:
+        raise ProtocolError(f"invalid request encoding: {exc}") from exc
 
 
 def format_authority(host: str, port: int, default_port: int) -> str:
@@ -113,6 +117,8 @@ def _split_connect_target(target: str) -> tuple[str, int]:
 
 
 def _rewrite_request(req: RequestHead, path: str, authority: str) -> bytes:
+    """Build the origin-form request for the destination, using ``h11``."""
+
     connection_tokens: set[str] = set()
     for name, value in req.headers:
         if name.lower() == "connection":
@@ -121,7 +127,7 @@ def _rewrite_request(req: RequestHead, path: str, authority: str) -> bytes:
             )
     skip = _HOP_BY_HOP | connection_tokens
 
-    out = [f"{req.method} {path} {req.version}"]
+    headers: list[tuple[bytes, bytes]] = []
     has_host = False
     for name, value in req.headers:
         lower = name.lower()
@@ -129,13 +135,35 @@ def _rewrite_request(req: RequestHead, path: str, authority: str) -> bytes:
             has_host = True
         if lower in skip:
             continue
-        out.append(f"{name}: {value}")
+        try:
+            headers.append(
+                (name.encode("latin-1"), value.encode("latin-1"))
+            )
+        except UnicodeEncodeError as exc:
+            raise ProtocolError(f"header cannot be encoded: {name}") from exc
     if not has_host:
-        out.append(f"Host: {authority}")
+        headers.append((b"host", authority.encode("latin-1")))
     # One request per client connection: the target must delimit the body by
     # closing, which lets the relay know when the downlink is complete.
-    out.append("Connection: close")
-    return ("\r\n".join(out) + "\r\n\r\n").encode("latin-1")
+    headers.append((b"connection", b"close"))
+
+    conn = h11.Connection(h11.CLIENT, max_incomplete_event_size=_MAX_HEAD)
+    try:
+        data = conn.send(
+            h11.Request(
+                method=req.method.encode("ascii"),
+                target=path.encode("latin-1"),
+                headers=headers,
+                # h11 only serializes HTTP/1.1; upgrading a 1.0 proxy request
+                # is safe and the forced Connection: close keeps semantics.
+                http_version=b"1.1",
+            )
+        )
+    except (h11.LocalProtocolError, UnicodeEncodeError) as exc:
+        raise ProtocolError(str(exc)) from exc
+    if data is None:
+        raise ProtocolError("could not serialize the outgoing request")
+    return data
 
 
 class HttpProxyServer:
@@ -255,7 +283,7 @@ class HttpProxyServer:
             await stream.abort()
             return
 
-        await self._relay(reader, writer, stream)
+        await relay(reader, writer, stream, self.cfg.idle_timeout)
 
     async def _handle_forward(
         self,
@@ -288,7 +316,11 @@ class HttpProxyServer:
         if parts.query:
             path = f"{path}?{parts.query}"
         authority = format_authority(parts.hostname, port, 80)
-        head = _rewrite_request(req, path, authority)
+        try:
+            head = _rewrite_request(req, path, authority)
+        except ProtocolError as exc:
+            await self._send_error(writer, 400, "Bad Request", str(exc))
+            return
 
         try:
             stream = await self.session.open_stream(parts.hostname, port, initial=head)
@@ -297,79 +329,7 @@ class HttpProxyServer:
             await self._send_error(writer, 502, "Bad Gateway", str(exc))
             return
 
-        await self._relay(reader, writer, stream)
-
-    # ---- byte relay -----------------------------------------------------
-
-    async def _relay(
-        self,
-        reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter,
-        stream: XhttpStream,
-    ) -> None:
-        up = asyncio.create_task(self._pump_up(reader, stream), name="xhttp-up")
-        down = asyncio.create_task(
-            self._pump_down(writer, stream), name="xhttp-down"
-        )
-        try:
-            done, _ = await asyncio.wait(
-                {up, down}, return_when=asyncio.FIRST_COMPLETED
-            )
-            if down in done:
-                # The response/target side finished; the client has nothing
-                # left to wait for.
-                if not up.done():
-                    up.cancel()
-            else:
-                # The client half-closed (or failed) first.
-                error = None
-                if not up.cancelled():
-                    error = up.exception()
-                if error is None:
-                    try:
-                        await down
-                    except (XhttpError, OSError, ConnectionError):
-                        pass
-                elif not down.done():
-                    down.cancel()
-        finally:
-            for task in (up, down):
-                if not task.done():
-                    task.cancel()
-            results = await asyncio.gather(up, down, return_exceptions=True)
-            for result in results:
-                if isinstance(result, asyncio.CancelledError):
-                    continue
-                if isinstance(result, (ConnectionError, BrokenPipeError, OSError)):
-                    log.debug("relay ended: %s", result)
-                elif isinstance(result, Exception):
-                    log.debug("relay error: %s", result)
-            await stream.aclose()
-
-    async def _pump_up(
-        self, reader: asyncio.StreamReader, stream: XhttpStream
-    ) -> None:
-        while True:
-            data = await reader.read(65536)
-            if not data:
-                await stream.write_eof()
-                return
-            await stream.write(data)
-
-    async def _pump_down(
-        self, writer: asyncio.StreamWriter, stream: XhttpStream
-    ) -> None:
-        while True:
-            data = await stream.read(self.cfg.idle_timeout)
-            if data is None:
-                try:
-                    if writer.can_write_eof():
-                        writer.write_eof()
-                except (OSError, ConnectionError):
-                    pass
-                return
-            writer.write(data)
-            await writer.drain()
+        await relay(reader, writer, stream, self.cfg.idle_timeout)
 
     # ---- responses ------------------------------------------------------
 

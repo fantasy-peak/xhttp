@@ -1,5 +1,7 @@
 import unittest
 
+import h11
+
 from xhttp.proxy import (
     ProtocolError,
     _rewrite_request,
@@ -9,6 +11,18 @@ from xhttp.proxy import (
 )
 
 
+def parse_wire(head: bytes):
+    conn = h11.Connection(h11.SERVER)
+    conn.receive_data(head)
+    event = conn.next_event()
+    assert isinstance(event, h11.Request), event
+    headers = {
+        name.decode("latin-1"): value.decode("latin-1")
+        for name, value in event.headers
+    }
+    return event, headers
+
+
 class RequestHeadTest(unittest.TestCase):
     def test_connect(self):
         req = parse_request_head(
@@ -16,7 +30,7 @@ class RequestHeadTest(unittest.TestCase):
         )
         self.assertEqual(req.method, "CONNECT")
         self.assertEqual(req.target, "example.com:443")
-        self.assertEqual(req.headers, [("Host", "example.com:443")])
+        self.assertEqual(req.headers, [("host", "example.com:443")])
 
     def test_rejects_folded_header(self):
         with self.assertRaises(ProtocolError):
@@ -25,6 +39,10 @@ class RequestHeadTest(unittest.TestCase):
     def test_rejects_bad_request_line(self):
         with self.assertRaises(ProtocolError):
             parse_request_head(b"GET / HTTP/1.1 extra\r\n\r\n")
+
+    def test_requires_host_for_http11(self):
+        with self.assertRaises(ProtocolError):
+            parse_request_head(b"GET http://example.com/ HTTP/1.1\r\n\r\n")
 
 
 class ConnectTargetTest(unittest.TestCase):
@@ -52,18 +70,23 @@ class RewriteTest(unittest.TestCase):
             b"X-Drop: yes\r\n"
             b"X-Keep: no\r\n\r\n"
         )
-        out = _rewrite_request(req, "/a?b=1", "example.com").decode("latin-1")
-        self.assertIn("GET /a?b=1 HTTP/1.1\r\n", out)
-        self.assertIn("Host: example.com\r\n", out)
-        self.assertIn("X-Keep: no\r\n", out)
-        self.assertNotIn("Proxy-Connection", out)
-        self.assertNotIn("X-Drop", out)
-        self.assertTrue(out.endswith("Connection: close\r\n\r\n"))
+        event, headers = parse_wire(_rewrite_request(req, "/a?b=1", "example.com"))
+        self.assertEqual(event.method, b"GET")
+        self.assertEqual(event.target, b"/a?b=1")
+        self.assertEqual(headers["host"], "example.com")
+        self.assertEqual(headers["x-keep"], "no")
+        self.assertEqual(headers["connection"], "close")
+        self.assertNotIn("proxy-connection", headers)
+        self.assertNotIn("x-drop", headers)
 
-    def test_adds_missing_host(self):
-        req = parse_request_head(b"GET http://example.com/ HTTP/1.1\r\n\r\n")
-        out = _rewrite_request(req, "/", "example.com:8080").decode("latin-1")
-        self.assertIn("Host: example.com:8080\r\n", out)
+    def test_adds_missing_host_for_http10(self):
+        req = parse_request_head(b"GET http://example.com/ HTTP/1.0\r\n\r\n")
+        event, headers = parse_wire(
+            _rewrite_request(req, "/", "example.com:8080")
+        )
+        # h11 only writes HTTP/1.1; the proxy upgrades 1.0 requests.
+        self.assertEqual(event.http_version, b"1.1")
+        self.assertEqual(headers["host"], "example.com:8080")
 
 
 class AuthorityTest(unittest.TestCase):

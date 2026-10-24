@@ -9,7 +9,11 @@
 
 from PyInstaller.utils.hooks import collect_submodules
 
-hiddenimports = collect_submodules("h2")
+hiddenimports = (
+    collect_submodules("h2")
+    + collect_submodules("h11")
+    + collect_submodules("socks5")
+)
 
 a = Analysis(
     ["run.py"],

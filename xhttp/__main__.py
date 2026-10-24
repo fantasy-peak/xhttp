@@ -23,6 +23,7 @@ from .config import (
 )
 from .h2client import H2Session
 from .proxy import HttpProxyServer
+from .socks5 import Socks5Server
 
 log = logging.getLogger("xhttp")
 
@@ -55,6 +56,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--listen",
         metavar="HOST:PORT",
         help="local HTTP proxy listen address",
+    )
+    parser.add_argument(
+        "--socks-listen",
+        metavar="[HOST:]PORT",
+        help="local SOCKS5 listen address (disabled by default, e.g. 127.0.0.1:1081)",
+    )
+    parser.add_argument(
+        "--no-socks",
+        action="store_true",
+        default=None,
+        help="disable the local SOCKS5 listener",
     )
     parser.add_argument(
         "--no-tls",
@@ -146,6 +158,10 @@ def build_config(args: argparse.Namespace) -> Config:
             host, port = parse_host_port(args.listen, 1080)
             cfg.listen_host = host
             cfg.listen_port = port
+    if args.socks_listen is not None:
+        cfg.socks_listen = args.socks_listen
+    if args.no_socks:
+        cfg.socks_listen = ""
     if args.no_tls:
         cfg.tls = False
     if args.insecure is not None:
@@ -201,10 +217,21 @@ async def _run(cfg: Config) -> None:
     _install_task_dump()
     session = H2Session(cfg)
     proxy = HttpProxyServer(cfg, session)
+    socks = Socks5Server(cfg, session) if cfg.socks_endpoint() else None
+
+    tasks = [asyncio.create_task(proxy.serve(), name="http-proxy")]
+    if socks is not None:
+        tasks.append(asyncio.create_task(socks.serve(), name="socks5-proxy"))
     try:
-        await proxy.serve()
+        await asyncio.gather(*tasks)
     finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         await proxy.close()
+        if socks is not None:
+            await socks.close()
         await session.close()
 
 
