@@ -1,6 +1,6 @@
 import unittest
 
-from xhttp_proxy.config import (
+from xhttp.config import (
     Config,
     ConfigError,
     apply_share_url,
@@ -48,7 +48,7 @@ class FinalizeTest(unittest.TestCase):
         self.assertEqual(cfg.authority, "cdn.example.net")
 
     def test_path_gets_leading_slash(self):
-        self.assertEqual(self.make(path="h2vless").path, "/h2vless")
+        self.assertEqual(self.make(path="xhttp").path, "/xhttp")
 
     def test_pin_is_normalized(self):
         cfg = self.make(pin_sha256="AA:" * 31 + "BB")
@@ -71,12 +71,12 @@ class ShareUrlTest(unittest.TestCase):
             "vless://"
             + UUID
             + "@example.com:8443?type=xhttp&mode=stream-one&security=tls"
-            + "&path=%2Fh2vless&sni=cdn.example.net",
+            + "&path=%2Fxhttp&sni=cdn.example.net",
         )
         cfg = finalize(cfg)
         self.assertEqual(cfg.server, "example.com")
         self.assertEqual(cfg.port, 8443)
-        self.assertEqual(cfg.path, "/h2vless")
+        self.assertEqual(cfg.path, "/xhttp")
         self.assertEqual(cfg.sni, "cdn.example.net")
         self.assertTrue(cfg.tls)
 

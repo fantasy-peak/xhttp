@@ -29,14 +29,14 @@ jobs:
         run: .venv\Scripts\python.exe -m unittest discover -s tests -v
 
       - name: Build one-file exe
-        run: .venv\Scripts\python.exe -m PyInstaller --noconfirm --clean xhttp-proxy.spec
+        run: .venv\Scripts\python.exe -m PyInstaller --noconfirm --clean xhttp.spec
 
       - name: Smoke test (config check)
         run: |
-          .\dist\xhttp-proxy.exe --check --server 127.0.0.1:443 --uuid 03912810-3d4f-4514-b2f3-f3b74fa0495f --path /h2vless --sni example.com --listen 1080
+          .\dist\xhttp.exe --check --server 127.0.0.1:443 --uuid 00000000-0000-0000-0000-000000000000 --path /xhttp --sni example.com --listen 1080
 
       - uses: actions/upload-artifact@v4
         with:
-          name: xhttp-proxy-windows
-          path: dist/xhttp-proxy.exe
+          name: xhttp-windows
+          path: dist/xhttp.exe
           if-no-files-found: error

@@ -1,6 +1,6 @@
 import unittest
 
-from xhttp_proxy.proxy import (
+from xhttp.proxy import (
     ProtocolError,
     _rewrite_request,
     _split_connect_target,

@@ -15,4 +15,4 @@ if not exist "config.json" (
     )
 )
 
-".venv\Scripts\python.exe" -m xhttp_proxy %*
+".venv\Scripts\python.exe" -m xhttp %*

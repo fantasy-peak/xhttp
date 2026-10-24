@@ -2,7 +2,7 @@
   "server": "127.0.0.1",
   "port": 8443,
   "uuid": "00000000-0000-0000-0000-000000000000",
-  "path": "/h2vless",
+  "path": "/xhttp",
   "sni": "example.com",
   "host": "",
   "tls": true,

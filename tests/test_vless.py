@@ -1,7 +1,7 @@
 import struct
 import unittest
 
-from xhttp_proxy.vless import (
+from xhttp.vless import (
     ATYP_DOMAIN,
     ATYP_IPV4,
     ATYP_IPV6,

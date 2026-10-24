@@ -2,7 +2,7 @@
 #
 # PyInstaller 6.x spec.  Build on Windows with:
 #
-#     .venv\Scripts\python.exe -m PyInstaller --noconfirm --clean xhttp-proxy.spec
+#     .venv\Scripts\python.exe -m PyInstaller --noconfirm --clean xhttp.spec
 #
 # Cross-compiling a Windows .exe from Linux is not supported by PyInstaller;
 # run build.bat on Windows (or a Windows CI runner).
@@ -12,7 +12,7 @@ from PyInstaller.utils.hooks import collect_submodules
 hiddenimports = collect_submodules("h2")
 
 a = Analysis(
-    ["xhttp-proxy.py"],
+    ["run.py"],
     pathex=["."],
     binaries=[],
     datas=[],
@@ -32,7 +32,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="xhttp-proxy",
+    name="xhttp",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

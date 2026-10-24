@@ -14,12 +14,12 @@ VSVersionInfo(
       StringTable(
         '040904B0',
         [
-          StringStruct('CompanyName', 'xhttp-proxy'),
+          StringStruct('CompanyName', 'xhttp'),
           StringStruct('FileDescription', 'VLESS / XHTTP stream-one HTTP proxy'),
           StringStruct('FileVersion', '0.1.0'),
-          StringStruct('InternalName', 'xhttp-proxy'),
-          StringStruct('OriginalFilename', 'xhttp-proxy.exe'),
-          StringStruct('ProductName', 'xhttp-proxy'),
+          StringStruct('InternalName', 'xhttp'),
+          StringStruct('OriginalFilename', 'xhttp.exe'),
+          StringStruct('ProductName', 'xhttp'),
           StringStruct('ProductVersion', '0.1.0')
         ]
       )

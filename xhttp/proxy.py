@@ -248,7 +248,7 @@ class HttpProxyServer:
         try:
             writer.write(
                 b"HTTP/1.1 200 Connection Established\r\n"
-                b"Proxy-Agent: xhttp-proxy\r\n\r\n"
+                b"Proxy-Agent: xhttp\r\n\r\n"
             )
             await writer.drain()
         except (OSError, ConnectionError):
@@ -386,7 +386,7 @@ class HttpProxyServer:
             "Content-Type: text/plain; charset=utf-8\r\n"
             f"Content-Length: {len(body)}\r\n"
             "Connection: close\r\n"
-            "Proxy-Agent: xhttp-proxy\r\n\r\n"
+            "Proxy-Agent: xhttp\r\n\r\n"
         ).encode("latin-1")
         try:
             writer.write(head + body)

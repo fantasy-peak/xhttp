@@ -29,7 +29,7 @@ log = logging.getLogger("xhttp")
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="xhttp-proxy",
+        prog="xhttp",
         description=(
             "Local HTTP proxy that carries each connection as a VLESS stream "
             "over an XHTTP (stream-one) HTTP/2 request."
@@ -213,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         cfg = build_config(args)
     except ConfigError as exc:
-        print(f"xhttp-proxy: {exc}", file=sys.stderr)
+        print(f"xhttp: {exc}", file=sys.stderr)
         return 2
 
     setup_logging(cfg.verbose)
@@ -222,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
         print(cfg.summary())
         return 0
 
-    log.info("xhttp-proxy %s", __version__)
+    log.info("xhttp %s", __version__)
     log.info("%s", cfg.summary())
     if cfg.tls and cfg.insecure:
         log.warning("TLS certificate verification is disabled (--insecure)")

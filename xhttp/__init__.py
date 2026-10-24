@@ -6,8 +6,7 @@ whose response body is the downlink.  The first bytes in both directions are
 the VLESS request/response headers.
 
 Only the client half is implemented here; the server can be Xray-core or any
-compatible implementation (for example the C++ v2ray-cpp server in the parent
-directory).
+compatible XHTTP stream-one implementation.
 """
 
 __version__ = "0.1.0"

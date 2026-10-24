@@ -1,18 +1,18 @@
-# xhttp-proxy
+# xhttp
 
 一个用 Python 写的 **VLESS over XHTTP（stream-one）+ 本地 HTTP 代理** 客户端。
-给 Windows 本机使用，最终可以用 PyInstaller 打包成单个 `xhttp-proxy.exe`。
+给 Windows 本机使用，最终可以用 PyInstaller 打包成单个 `xhttp.exe`。
 
 它实现的是 Xray 的 XHTTP `stream-one` 形态：
 
 ```text
-本地程序 --HTTP--> xhttp-proxy --HTTP/2 POST (双向流)--> Xray / v2ray-cpp 服务端
+本地程序 --HTTP--> xhttp --HTTP/2 POST (双向流)--> Xray 服务端
                    请求体 = 上行（VLESS 头 + 数据）
                    响应体 = 下行（VLESS 响应头 + 数据）
 ```
 
-服务端可以是本仓库的 C++ `flux`（`h2_path`），也可以是 Xray-core 的
-`network: xhttp` / `mode: stream-one` 端点。
+服务端只需支持 Xray 的 XHTTP `stream-one`（`network: xhttp` /
+`mode: stream-one`），走 HTTP/2 或 h2c。
 
 > 只实现了 HTTP/2 传输（TLS + ALPN `h2`，或明文 h2c prior knowledge）。
 > 不支持 HTTP/3（QUIC）、REALITY、Mux.Cool 和 UDP；这些不在本客户端的范围内。
@@ -76,14 +76,17 @@
 没有 `config.json` 时也可以全部用命令行：
 
 ```bat
-run.bat --server 1.2.3.4:8443 --uuid 03912810-3d4f-4514-b2f3-f3b74fa0495f ^
-        --path /h2vless --sni example.com --pin-sha256 9cb3... --listen 127.0.0.1:1080
+:: UUID / 证书指纹 / 服务器地址替换成自己的
+run.bat --server 1.2.3.4:8443 --uuid 00000000-0000-0000-0000-000000000000 ^
+        --path /xhttp --sni example.com ^
+        --pin-sha256 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff ^
+        --listen 127.0.0.1:1080
 ```
 
 或者直接使用 VLESS 分享链接：
 
 ```bat
-run.bat --url "vless://UUID@1.2.3.4:8443?type=xhttp&mode=stream-one&security=tls&path=%2Fh2vless&sni=example.com"
+run.bat --url "vless://00000000-0000-0000-0000-000000000000@1.2.3.4:8443?type=xhttp&mode=stream-one&security=tls&path=%2Fxhttp&sni=example.com"
 ```
 
 ## 通过 pip + Git 安装（Windows）
@@ -110,8 +113,8 @@ pip install "git+ssh://git@github.com/fantasy-peak/xhttp.git@main"
 安装后入口在虚拟环境里：
 
 ```bat
-.venv\Scripts\xhttp-proxy.exe --version
-.venv\Scripts\xhttp-proxy.exe --config C:\path\to\config.json
+.venv\Scripts\xhttp.exe --version
+.venv\Scripts\xhttp.exe --config C:\path\to\config.json
 ```
 
 注意：
@@ -123,7 +126,7 @@ pip install "git+ssh://git@github.com/fantasy-peak/xhttp.git@main"
 - Windows 上需要安装 **Git for Windows**（`pip` 会调用 `git clone`）。
 - 配置文件查找顺序是「当前工作目录 → Python/程序所在目录 → `--config`」。
   用 pip 安装时建议显式 `--config`，或在启动目录放 `config.json`。
-- **pip 装出来的是虚拟环境里的启动器**（`Scripts\xhttp-proxy.exe`），它依赖
+- **pip 装出来的是虚拟环境里的启动器**（`Scripts\xhttp.exe`），它依赖
   该 venv 和 Python。换一台没有 Python 的机器不能直接拷贝它；要单文件分发，
   仍然用下面的 PyInstaller `build.bat` 或 CI artifact。
 
@@ -138,20 +141,20 @@ build.bat
 产物：
 
 ```text
-dist\xhttp-proxy.exe
+dist\xhttp.exe
 ```
 
 把 `config.json` 放在 exe 同目录（或当前工作目录），双击 exe 或建快捷方式即可。
 exe 是 `--onefile --console`：会显示一个控制台窗口，日志和错误都在里面。
 
 首次启动单文件 exe 需要解压到临时目录，通常 1 秒左右；如果介意，可以把
-`xhttp-proxy.spec` 里的 `onefile` 形态改成目录形态（去掉 `EXE` 里的
+`xhttp.spec` 里的 `onefile` 形态改成目录形态（去掉 `EXE` 里的
 `a.binaries, a.datas`，改用 `COLLECT`），或直接分发 `.venv` 里的
-`python -m xhttp_proxy`。
+`python -m xhttp`。
 
 没有 Windows 机器时，仓库里已经带了一个 GitHub Actions 工作流
-`.github/workflows/build-xhttp-proxy.yml`：在 GitHub 的 Actions 页面手动运行
-「Build xhttp-proxy (Windows)」，完成后下载 `xhttp-proxy-windows` artifact 即可。
+`.github/workflows/build-xhttp.yml`：在 GitHub 的 Actions 页面手动运行
+「Build Windows exe」，完成后下载 `xhttp-windows` artifact 即可。
 它会在 `windows-latest` 上建 venv、跑单元测试、用同一个 spec 打包 exe。
 
 ## 配置项
@@ -163,7 +166,7 @@ exe 是 `--onefile --console`：会显示一个控制台窗口，日志和错误
 | `server` | 必填 | XHTTP 服务端地址（IP 或域名） |
 | `port` | 443 / 80 | 服务端端口；不填时 TLS=443、明文=80 |
 | `uuid` | 必填 | VLESS 用户 UUID |
-| `path` | `/` | XHTTP 路径，例如 `/h2vless` |
+| `path` | `/` | XHTTP 路径，例如 `/xhttp` |
 | `sni` | `server` | TLS SNI；用 IP 连服务端时也应填证书名 |
 | `host` | 空 | HTTP `Host` / `:authority` 覆盖（Xray 的 `xhttpSettings.host`） |
 | `user_agent` | 浏览器 UA | 发往服务端的 User-Agent |
@@ -232,7 +235,7 @@ PKI 校验（含主机名）再比对 pin。
 **出站（本程序 → 上游 HTTP 代理 → XHTTP 服务端）**
 
 ```bash
-python -m xhttp_proxy --upstream-proxy http://10.0.0.1:3128 ...
+python -m xhttp --upstream-proxy http://10.0.0.1:3128 ...
 ```
 
 先对 `Host: server:port` 发 `CONNECT`，收到 200 后再做 TLS（如果启用了 TLS）。
@@ -241,49 +244,34 @@ python -m xhttp_proxy --upstream-proxy http://10.0.0.1:3128 ...
 
 ## 服务端配合
 
-### v2ray-cpp（本仓库）
-
-服务端配置里：
-
-```json
-{
-  "h2_path": "/h2vless",
-  "uuid": "03912810-3d4f-4514-b2f3-f3b74fa0495f"
-}
-```
-
-客户端：
-
-```bash
-python -m xhttp_proxy --server 127.0.0.1:8443 --uuid ... \
-  --path /h2vless --sni SimpleHttpServer --pin-sha256 9cb3... --listen 127.0.0.1:1080
-```
-
-服务端的 h2 路由同时注册了裸路径和末尾带 `/` 的形式；客户端写哪个都可以。
-
-### Xray-core
-
 服务端 `streamSettings` 使用：
 
 ```json
 "network": "xhttp",
 "security": "tls",
-"xhttpSettings": {"path": "/h2vless", "mode": "stream-one"}
+"xhttpSettings": {"path": "/xhttp", "mode": "stream-one"}
 ```
 
 TLS 的 ALPN 需要包含 `h2`（不要只配 `h3`，否则本客户端会报
 `server selected ALPN 'h3'; XHTTP stream-one needs 'h2'`）。
+
+客户端：
+
+```bash
+python -m xhttp --server 1.2.3.4:8443 --uuid <UUID> \
+  --path /xhttp --sni example.com --ca /path/to/ca.pem --listen 127.0.0.1:1080
+```
 
 ## 开发与测试
 
 ```bash
 ./setup.sh
 .venv/bin/python -m unittest discover -s tests -v
-.venv/bin/python -m xhttp_proxy --check --server ... --uuid ...
+.venv/bin/python -m xhttp --check --server ... --uuid ...
 ./build.sh          # Linux 二进制，仅用于验证 spec
 ```
 
-本机已验证（C++ `flux` + `flux_h2_tls.json`）：
+已用本地 XHTTP 服务端（HTTP/2 与 h2c）验证：
 
 - 绝对 URI 与 `CONNECT` 两种 HTTP 代理形态；
 - 10 MB 本地 HTTP 下载、3 MB `Content-Length` / chunked 上传；
@@ -304,7 +292,7 @@ TLS 的 ALPN 需要包含 `h2`（不要只配 `h3`，否则本客户端会报
 
 | 现象 | 排查 |
 |---|---|
-| `XHTTP endpoint returned HTTP 404` | `path` 不对、UUID 不对，或服务端该路径没开 h2/xhttp；v2ray-cpp 只接受 HTTP/2/3，不接受 HTTP/1.1 |
+| `XHTTP endpoint returned HTTP 404` | `path` 不对、UUID 不对，或服务端该路径没开 h2/xhttp；XHTTP stream-one 只接受 HTTP/2/3，不接受 HTTP/1.1 |
 | `server selected ALPN ... needs 'h2'` | 服务端 TLS 只开了 `h3`，改为同时开 `h2`，或客户端换端口 |
 | `certificate pin mismatch` | 重新取叶子证书指纹；确认没有连到反代/其他证书 |
 | `CERTIFICATE_VERIFY_FAILED` | 自签证书用 `--pin-sha256` 或 `--ca`；测试可 `--insecure` |
@@ -324,8 +312,8 @@ TLS 的 ALPN 需要包含 `h2`（不要只配 `h3`，否则本客户端会报
 
 ```text
 .
-├── xhttp-proxy.py            # PyInstaller / 直接启动入口
-├── xhttp_proxy/
+├── run.py            # PyInstaller / 直接启动入口
+├── xhttp/
 │   ├── __main__.py           # 命令行、配置合并、事件循环
 │   ├── config.py             # Config / JSON / vless:// 解析
 │   ├── vless.py              # VLESS 请求头/响应头
@@ -336,7 +324,7 @@ TLS 的 ALPN 需要包含 `h2`（不要只配 `h3`，否则本客户端会报
 ├── config.example.json
 ├── requirements.txt
 ├── requirements-build.txt
-├── xhttp-proxy.spec          # PyInstaller
+├── xhttp.spec                # PyInstaller
 ├── version_info.txt          # exe 版本信息
 ├── setup.bat / run.bat / build.bat
 └── setup.sh / build.sh       # Linux 开发/验证用

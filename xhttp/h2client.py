@@ -6,9 +6,9 @@ local connection becomes one POST stream:
 * request body  -> uplink   (VLESS request header first)
 * response body -> downlink (VLESS response header first)
 
-The server may be Xray-core or the C++ v2ray-cpp server.  Only HTTP/2
-(TLS + ALPN ``h2``, or cleartext prior knowledge) is implemented; XHTTP over
-HTTP/3 would need a QUIC stack.
+The server may be Xray-core or any compatible XHTTP stream-one endpoint.
+Only HTTP/2 (TLS + ALPN ``h2``, or cleartext prior knowledge) is implemented;
+XHTTP over HTTP/3 would need a QUIC stack.
 """
 
 from __future__ import annotations
