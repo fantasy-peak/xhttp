@@ -30,6 +30,16 @@ DEFAULT_USER_AGENT = (
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
 
+def _bracket_ipv6(host: str) -> str:
+    """Wrap a bare IPv6 literal in brackets so it can precede ``:port``."""
+
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return host
+    return f"[{host}]" if ip.version == 6 else host
+
+
 class ConfigError(ValueError):
     """Invalid or missing configuration."""
 
@@ -75,17 +85,23 @@ class Config:
     def server_authority(self) -> str:
         """``host[:port]`` of the actual server (brackets for IPv6)."""
 
-        host = self.server
-        try:
-            ip = ipaddress.ip_address(host)
-            if ip.version == 6:
-                host = f"[{host}]"
-        except ValueError:
-            pass
+        host = _bracket_ipv6(self.server)
         default_port = 443 if self.tls else 80
         if self.port == default_port:
             return host
         return f"{host}:{self.port}"
+
+    @property
+    def connect_authority(self) -> str:
+        """``host:port`` for a proxy ``CONNECT``.
+
+        Unlike ``server_authority`` the port is never omitted: RFC 9110
+        section 9.3.6 requires the authority-form target to carry the port,
+        and strict proxies (Squid, corporate middleboxes) answer ``400 Bad
+        Request`` without it.
+        """
+
+        return f"{_bracket_ipv6(self.server)}:{self.port}"
 
     @property
     def authority(self) -> str:

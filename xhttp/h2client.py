@@ -238,7 +238,9 @@ class H2Session:
 
         # The CONNECT target is the real server address, not the optional
         # Host-header override (which may be a CDN name with no A record here).
-        target = cfg.server_authority
+        # It must always carry the port (RFC 9110 9.3.6): proxies reject the
+        # port-less form with 400 Bad Request.
+        target = cfg.connect_authority
         try:
             writer.write(
                 (

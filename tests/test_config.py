@@ -60,6 +60,21 @@ class FinalizeTest(unittest.TestCase):
         cfg = self.make(host="cdn.example.net")
         self.assertEqual(cfg.authority, "cdn.example.net")
 
+    def test_connect_authority_keeps_default_port(self):
+        # RFC 9110 9.3.6: a CONNECT target must always carry the port.
+        cfg = self.make()
+        self.assertEqual(cfg.connect_authority, "example.com:443")
+        self.assertEqual(self.make(tls=False).connect_authority, "example.com:80")
+
+    def test_connect_authority_brackets_ipv6(self):
+        self.assertEqual(
+            self.make(server="2001:db8::1").connect_authority, "[2001:db8::1]:443"
+        )
+
+    def test_connect_authority_ignores_host_override(self):
+        cfg = self.make(host="cdn.example.net")
+        self.assertEqual(cfg.connect_authority, "example.com:443")
+
     def test_path_gets_leading_slash(self):
         self.assertEqual(self.make(path="xhttp").path, "/xhttp")
 
